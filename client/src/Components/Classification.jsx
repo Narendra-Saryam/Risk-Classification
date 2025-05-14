@@ -56,7 +56,12 @@ const Classification = () => {
     };
 
     try {
-      const res = await axios.post('http://localhost:5000/predict', payload);
+      const API_URL = import.meta.env.DEV
+        ? 'http://localhost:5000/predict'
+        : 'https://risk-classification.onrender.com/predict';
+
+        const res = await axios.post(API_URL, payload);
+
       setResult(res.data.risk_prediction);
 
       // Fake probabilities as placeholders
