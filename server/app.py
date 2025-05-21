@@ -1,72 +1,90 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import pickle
-import pandas as pd
+import torch
+import torch.nn.functional as F
+from torch_geometric.data import Data
 import numpy as np
-from sklearn.preprocessing import OneHotEncoder
+from model import ClinicalGNN  # Ensure model.py has this class
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 
-# Load the trained model
-with open('random_forest_model.pkl', 'rb') as f:
-    model = pickle.load(f)
+# Constants
+RISK_CLASSES = {0: 'Normal', 1: 'Low', 2: 'High'}
 
-# Re-create encoder with same categories as training
-encoder = OneHotEncoder(sparse_output=False)
-encoder.fit(pd.DataFrame({
-    "liver_function": ['Mild', 'Moderate', 'Severe'],
-    "kidney_function": ['Mild', 'Moderate', 'Severe'],
-    "lung_function": ['Mild', 'Moderate', 'Severe'],
-    "addiction_dependence": ['No', 'Yes', 'No']
-}))
+# Load the trained GNN model
+model = ClinicalGNN(in_dim=15, hid_dim=128, out_dim=3)  # Adjust `in_dim` if needed
+model.load_state_dict(torch.load('best_model.pt', map_location=torch.device('cpu')))
+model.eval()
 
 @app.route('/')
 def home():
-    return "Clinical Risk Prediction API is running."
+    return "GNN Clinical Risk Prediction API is running."
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'error': 'No data provided'}), 400
+            return jsonify({'error': 'No input data received'}), 400
 
-        # Convert input into DataFrame
-        input_df = pd.DataFrame([data])
+        # Required fields (match input structure)
+        required_fields = [
+            'age', 'gender', 'weight', 'height',
+            'alcohol_consumption', 'alcohol_duration',
+            'tobacco_chewing', 'tobacco_duration',
+            'smoking', 'smoking_duration',
+            'addiction_dependence',
+            'liver_function', 'kidney_function', 'lung_function',
+            'cancer', 'diabetes', 'hypertension'
+        ]
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': f'Missing fields: {", ".join(missing)}'}), 400
 
-        # Validate required fields
-        required_fields = ['age', 'gender', 'weight', 'height', 'alcohol_consumption',
-                         'tobacco_chewing', 'smoking', 'duration', 'liver_function',
-                         'kidney_function', 'lung_function', 'addiction_dependence',
-                         'cancer', 'diabetes', 'hypertension']
-        
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
+        # Map categorical inputs to numeric
+        severity_map = {'Mild': 0, 'Moderate': 1, 'Severe': 2}
+        yesno_map = {'No': 0, 'Yes': 1}
 
-        # One-hot encode categorical fields
-        categorical_features = ['liver_function', 'kidney_function', 'lung_function', 'addiction_dependence']
-        encoded = encoder.transform(input_df[categorical_features])
-        encoded_df = pd.DataFrame(encoded, columns=encoder.get_feature_names_out(categorical_features))
+        features = [
+            float(data['age']),
+            float(data['alcohol_consumption']),
+            float(data['alcohol_duration']),
+            float(data['tobacco_chewing']),
+            float(data['tobacco_duration']),
+            float(data['smoking']),
+            float(data['smoking_duration']),
+            yesno_map.get(data['addiction_dependence'], 0),
+            severity_map.get(data['liver_function'], 0),
+            severity_map.get(data['kidney_function'], 0),
+            severity_map.get(data['lung_function'], 0),
+            yesno_map.get(data['cancer'], 0),
+            yesno_map.get(data['diabetes'], 0),
+            yesno_map.get(data['hypertension'], 0),
+            int(data['gender'])  # Assuming gender is 0/1 already
+        ]
 
-        # Final feature set
-        final_features = pd.concat([
-            input_df[['age', 'gender', 'weight', 'height',
-                      'alcohol_consumption', 'tobacco_chewing',
-                      'smoking', 'duration']],
-            encoded_df,
-            input_df[['cancer', 'diabetes', 'hypertension']]
-        ], axis=1)
+        # Create graph data object for single patient (no edge_index needed)
+        x = torch.tensor([features], dtype=torch.float)
+        edge_index = torch.tensor([[], []], dtype=torch.long)  # No edges for single node
+        graph = Data(x=x, edge_index=edge_index)
 
-        # Predict
-        prediction = model.predict(final_features)[0]
-        return jsonify({'risk_prediction': int(prediction)})
+        with torch.no_grad():
+            output = model(graph)
+            probs = F.softmax(output, dim=1).numpy()[0]
+            predicted = int(np.argmax(probs))
 
-    except ValueError as ve:
-        return jsonify({'error': f'Invalid data format: {str(ve)}'}), 400
+        return jsonify({
+            'risk_level': RISK_CLASSES[predicted],
+            'probabilities': {
+                'Normal': round(probs[0] * 100, 2),
+                'Low': round(probs[1] * 100, 2),
+                'High': round(probs[2] * 100, 2)
+            }
+        })
+
     except Exception as e:
-        return jsonify({'error': f'Prediction error: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

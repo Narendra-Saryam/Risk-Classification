@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   BarElement,
@@ -10,7 +10,6 @@ import {
   Legend,
   ArcElement,
 } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ArcElement);
 
@@ -21,9 +20,11 @@ const Classification = () => {
     weight: '',
     height: '',
     alcohol_consumption: '1',
+    alcohol_duration: '1',
     tobacco_chewing: '1',
+    tobacco_duration: '1',
     smoking: '1',
-    duration: '1',
+    smoking_duration: '1',
     liver_function: 'Mild',
     kidney_function: 'Mild',
     lung_function: 'Mild',
@@ -38,18 +39,24 @@ const Classification = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     const payload = {
       ...formData,
       gender: parseInt(formData.gender),
-      alcohol_consumption: parseInt(formData.alcohol_consumption),
-      tobacco_chewing: parseInt(formData.tobacco_chewing),
-      smoking: parseInt(formData.smoking),
-      duration: parseInt(formData.duration),
+      age: parseFloat(formData.age),
+      weight: parseFloat(formData.weight),
+      height: parseFloat(formData.height),
+      alcohol_consumption: parseFloat(formData.alcohol_consumption),
+      alcohol_duration: parseFloat(formData.alcohol_duration),
+      tobacco_chewing: parseFloat(formData.tobacco_chewing),
+      tobacco_duration: parseFloat(formData.tobacco_duration),
+      smoking: parseFloat(formData.smoking),
+      smoking_duration: parseFloat(formData.smoking_duration),
       cancer: formData.cancer === 'Yes' ? 1 : 0,
       diabetes: formData.diabetes === 'Yes' ? 1 : 0,
       hypertension: formData.hypertension === 'Yes' ? 1 : 0
@@ -60,20 +67,22 @@ const Classification = () => {
         ? 'http://localhost:5000/predict'
         : 'https://risk-classification.onrender.com/predict';
 
-        const res = await axios.post(API_URL, payload);
+      const res = await axios.post(API_URL, payload);
 
-      setResult(res.data.risk_prediction);
+      const probs = res.data.probabilities;
+      const riskLabels = ['Normal', 'Low', 'High'];
+      const predictedIndex = riskLabels.indexOf(res.data.risk_level);
 
-      // Fake probabilities as placeholders
-      const fakeProbs = [0, 0, 0];
-      fakeProbs[res.data.risk_prediction] = 0.7;
-      const remaining = 0.3 / 2;
-      fakeProbs.forEach((v, i) => { if (v === 0) fakeProbs[i] = remaining });
-      setProbabilities(fakeProbs);
+      setResult(predictedIndex);
+      setProbabilities([
+        probs['Normal'] / 100,
+        probs['Low'] / 100,
+        probs['High'] / 100
+      ]);
     } catch (error) {
-      const errorMessage = error.response?.data?.error || error.message || 'An unknown error occurred';
-      alert('Prediction error: ' + errorMessage);
-      console.error('Prediction error details:', error);
+      const msg = error.response?.data?.error || error.message || 'Unknown error';
+      alert('Prediction error: ' + msg);
+      console.error('Error details:', error);
     }
   };
 
@@ -102,7 +111,7 @@ const Classification = () => {
       <h2 className="text-2xl font-bold mb-4">Clinical Risk Classifier</h2>
       <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
         <input type="number" name="age" value={formData.age} onChange={handleChange} placeholder="Age" required className="border p-2 rounded" />
-        <select name="gender" value={formData.gender} onChange={handleChange} className="border p-2 rounded">
+        <select name="gender" value={formData.gender} onChange={handleChange} className="border p-2 rounded" required>
           <option value="">Select Gender</option>
           <option value="0">Female</option>
           <option value="1">Male</option>
@@ -110,30 +119,34 @@ const Classification = () => {
         <input type="number" name="weight" value={formData.weight} onChange={handleChange} placeholder="Weight (kg)" required className="border p-2 rounded" />
         <input type="number" name="height" value={formData.height} onChange={handleChange} placeholder="Height (cm)" required className="border p-2 rounded" />
 
-        {['alcohol_consumption', 'tobacco_chewing', 'smoking'].map(field => (
-          <select key={field} name={field} value={formData[field]} onChange={handleChange} className="border p-2 rounded">
-            {[...Array(10)].map((_, i) => (
-              <option key={i+1} value={i+1}>{field.replace('_', ' ')} Level {i+1}</option>
-            ))}
-          </select>
+        {/* Consumption Levels */}
+        {['alcohol', 'tobacco', 'smoking'].map(sub => (
+          <React.Fragment key={sub}>
+            <select name={`${sub}_consumption`} value={formData[`${sub}_consumption`]} onChange={handleChange} className="border p-2 rounded" required>
+              {[...Array(10)].map((_, i) => (
+                <option key={i+1} value={i+1}>{sub} level {i+1}</option>
+              ))}
+            </select>
+            <select name={`${sub}_duration`} value={formData[`${sub}_duration`]} onChange={handleChange} className="border p-2 rounded" required>
+              {[...Array(20)].map((_, i) => (
+                <option key={i+1} value={i+1}>{sub} duration {i+1} year(s)</option>
+              ))}
+            </select>
+          </React.Fragment>
         ))}
 
-        <select name="duration" value={formData.duration} onChange={handleChange} className="border p-2 rounded">
-          {[...Array(20)].map((_, i) => (
-            <option key={i+1} value={i+1}>Duration: {i+1} year(s)</option>
-          ))}
-        </select>
-
+        {/* Organ Functions */}
         {['liver_function', 'kidney_function', 'lung_function'].map(field => (
-          <select key={field} name={field} value={formData[field]} onChange={handleChange} className="border p-2 rounded">
+          <select key={field} name={field} value={formData[field]} onChange={handleChange} className="border p-2 rounded" required>
             <option value="Mild">{field.replace('_', ' ')}: Mild</option>
             <option value="Moderate">{field.replace('_', ' ')}: Moderate</option>
             <option value="Severe">{field.replace('_', ' ')}: Severe</option>
           </select>
         ))}
 
+        {/* Binary fields */}
         {['addiction_dependence', 'cancer', 'diabetes', 'hypertension'].map(field => (
-          <select key={field} name={field} value={formData[field]} onChange={handleChange} className="border p-2 rounded">
+          <select key={field} name={field} value={formData[field]} onChange={handleChange} className="border p-2 rounded" required>
             <option value="No">{field.replace('_', ' ')}: No</option>
             <option value="Yes">{field.replace('_', ' ')}: Yes</option>
           </select>
@@ -144,7 +157,9 @@ const Classification = () => {
 
       {result !== null && (
         <div className="mt-6">
-          <h3 className="text-xl font-semibold text-center">Prediction Result: <span className="font-bold" style={{ color: riskColors[result] }}>{riskLabels[result]}</span></h3>
+          <h3 className="text-xl font-semibold text-center">
+            Prediction Result: <span className="font-bold" style={{ color: riskColors[result] }}>{riskLabels[result]}</span>
+          </h3>
           <div className="flex flex-col md:flex-row justify-center gap-10 mt-6">
             <div className="w-full md:w-1/2">
               <Bar data={barData} />
