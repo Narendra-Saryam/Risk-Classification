@@ -2,89 +2,86 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import torch
 import torch.nn.functional as F
-from torch_geometric.data import Data
 import numpy as np
-from model import ClinicalGNN  # Ensure model.py has this class
+import pandas as pd
+import pickle
+from torch_geometric.data import Data
+from torch_geometric.nn import GCNConv
+import torch.nn as nn
 
 app = Flask(__name__)
 CORS(app)
 
-# Constants
-RISK_CLASSES = {0: 'Normal', 1: 'Low', 2: 'High'}
+# --- Define the ClinicalGNN class ---
+class ClinicalGNN(nn.Module):
+    def __init__(self, in_dim, hid_dim, out_dim):
+        super().__init__()
+        self.conv1 = GCNConv(in_dim, hid_dim)
+        self.conv2 = GCNConv(hid_dim, hid_dim)
+        self.clinical_norm = nn.BatchNorm1d(hid_dim)
+        self.classifier = nn.Linear(hid_dim, out_dim)
+        self.dropout = nn.Dropout(0.7)
 
-# Load the trained GNN model
-model = ClinicalGNN(in_dim=15, hid_dim=128, out_dim=3)  # Adjust `in_dim` if needed
-model.load_state_dict(torch.load('best_model.pt', map_location=torch.device('cpu')))
+    def forward(self, data):
+        x, edge_index = data.x, data.edge_index
+        x = F.elu(self.conv1(x, edge_index))
+        x = self.clinical_norm(x)
+        x = F.elu(self.conv2(x, edge_index))
+        return F.log_softmax(self.classifier(x), dim=1)
+
+# --- Load the model and scaler ---
+with open('model.pkl', 'rb') as f:
+    saved = pickle.load(f)
+
+model = ClinicalGNN(saved['input_dim'], 128, 3)
+model.load_state_dict(saved['model_state_dict'])
 model.eval()
+
+scaler = saved['scaler']
 
 @app.route('/')
 def home():
-    return "GNN Clinical Risk Prediction API is running."
+    return "Clinical GNN API is running."
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'error': 'No input data received'}), 400
+            return jsonify({'error': 'No data provided'}), 400
 
-        # Required fields (match input structure)
-        required_fields = [
-            'age', 'gender', 'weight', 'height',
-            'alcohol_consumption', 'alcohol_duration',
+        # Required features
+        edge_features = [
+            'age', 'alcohol_consumption', 'alcohol_duration',
             'tobacco_chewing', 'tobacco_duration',
-            'smoking', 'smoking_duration',
-            'addiction_dependence',
+            'smoking', 'smoking_duration', 'addiction_dependence',
             'liver_function', 'kidney_function', 'lung_function',
             'cancer', 'diabetes', 'hypertension'
         ]
-        missing = [f for f in required_fields if f not in data]
-        if missing:
-            return jsonify({'error': f'Missing fields: {", ".join(missing)}'}), 400
 
-        # Map categorical inputs to numeric
-        severity_map = {'Mild': 0, 'Moderate': 1, 'Severe': 2}
-        yesno_map = {'No': 0, 'Yes': 1}
+        missing_fields = [field for field in edge_features if field not in data]
+        if missing_fields:
+            return jsonify({'error': f'Missing fields: {", ".join(missing_fields)}'}), 400
 
-        features = [
-            float(data['age']),
-            float(data['alcohol_consumption']),
-            float(data['alcohol_duration']),
-            float(data['tobacco_chewing']),
-            float(data['tobacco_duration']),
-            float(data['smoking']),
-            float(data['smoking_duration']),
-            yesno_map.get(data['addiction_dependence'], 0),
-            severity_map.get(data['liver_function'], 0),
-            severity_map.get(data['kidney_function'], 0),
-            severity_map.get(data['lung_function'], 0),
-            yesno_map.get(data['cancer'], 0),
-            yesno_map.get(data['diabetes'], 0),
-            yesno_map.get(data['hypertension'], 0),
-            int(data['gender'])  # Assuming gender is 0/1 already
-        ]
+        # Prepare single input
+        input_df = pd.DataFrame([data])
+        input_scaled = scaler.transform(input_df[edge_features])
+        node_features = torch.tensor(input_scaled, dtype=torch.float)
 
-        # Create graph data object for single patient (no edge_index needed)
-        x = torch.tensor([features], dtype=torch.float)
-        edge_index = torch.tensor([[], []], dtype=torch.long)  # No edges for single node
-        graph = Data(x=x, edge_index=edge_index)
+        # Dummy edge index (self-loop only)
+        edge_index = torch.tensor([[0], [0]], dtype=torch.long)
+
+        # Create PyTorch Geometric Data object
+        graph = Data(x=node_features, edge_index=edge_index)
 
         with torch.no_grad():
-            output = model(graph)
-            probs = F.softmax(output, dim=1).numpy()[0]
-            predicted = int(np.argmax(probs))
+            out = model(graph)
+            prediction = torch.argmax(out, dim=1).item()
 
-        return jsonify({
-            'risk_level': RISK_CLASSES[predicted],
-            'probabilities': {
-                'Normal': round(probs[0] * 100, 2),
-                'Low': round(probs[1] * 100, 2),
-                'High': round(probs[2] * 100, 2)
-            }
-        })
+        return jsonify({'risk_prediction': prediction})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Prediction error: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
