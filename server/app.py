@@ -50,28 +50,30 @@ def predict():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        # Required features
+        # Required features used during training
         edge_features = [
-            'age', 'alcohol_consumption', 'alcohol_duration',
-            'tobacco_chewing', 'tobacco_duration',
-            'smoking', 'smoking_duration', 'addiction_dependence',
+            'age', 'gender', 'height', 'weight',
+            'alcohol_consumption_per_day_in_liter', 'alcohol_duration',
+            'tobacco_chewing_per_day_in_gram', 'tobacco_duration',
+            'smoking_per_day', 'smoking_duration',
+            'addiction_dependence',
             'liver_function', 'kidney_function', 'lung_function',
             'cancer', 'diabetes', 'hypertension'
         ]
 
+        # Check for missing fields
         missing_fields = [field for field in edge_features if field not in data]
         if missing_fields:
             return jsonify({'error': f'Missing fields: {", ".join(missing_fields)}'}), 400
 
-        # Prepare single input
+        # Create DataFrame and scale
         input_df = pd.DataFrame([data])
         input_scaled = scaler.transform(input_df[edge_features])
         node_features = torch.tensor(input_scaled, dtype=torch.float)
 
-        # Dummy edge index (self-loop only)
+        # Dummy edge index for single node prediction
         edge_index = torch.tensor([[0], [0]], dtype=torch.long)
 
-        # Create PyTorch Geometric Data object
         graph = Data(x=node_features, edge_index=edge_index)
 
         with torch.no_grad():

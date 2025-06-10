@@ -17,7 +17,7 @@ full_df = pd.read_csv('patient_dataset.csv')
 # Preprocess for PyTorch Geometric
 scaler = StandardScaler()
 edge_features = [
-    'age', 'alcohol_consumption_per_day_in_liter', 'alcohol_duration',
+    'age', 'gender', 'height', 'weight', 'alcohol_consumption_per_day_in_liter', 'alcohol_duration',
     'tobacco_chewing_per_day_in_gram', 'tobacco_duration',
     'smoking_per_day', 'smoking_duration', 'addiction_dependence',
     'liver_function', 'kidney_function', 'lung_function',
