@@ -21,6 +21,8 @@ wheels/
 .installed.cfg
 *.egg
 venv/
+./server/venv/
+./server/__pycache__/
 
 # Node
 node_modules/

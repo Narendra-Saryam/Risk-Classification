@@ -28,7 +28,10 @@ const range = (start, end) => {
 
 const selectOptions = {
   age: range(18, 91),
-  gender: range(0, 1),
+  gender: [
+    { label: "Male", value: 0 },
+    { label: "Female", value: 1 }
+  ],
   height: range(150, 200),
   weight: range(40, 117),
   alcohol_consumption_per_day_in_liter: range(0, 15),
@@ -37,13 +40,35 @@ const selectOptions = {
   tobacco_duration: range(1, 24),
   smoking_per_day: range(0, 40),
   smoking_duration: range(1, 34),
-  addiction_dependence: [0, 1, 2],
-  liver_function: [0, 1],
-  kidney_function: [0, 1],
-  lung_function: [0, 1],
-  cancer: [0, 1],
-  diabetes: [0, 1],
-  hypertension: [0, 1]
+  addiction_dependence: [
+    { label: "None", value: 0 },
+    { label: "Mild", value: 1 },
+    { label: "Severe", value: 2 }
+  ],
+  liver_function: [
+    { label: "Normal", value: 0 },
+    { label: "Abnormal", value: 1 }
+  ],
+  kidney_function: [
+    { label: "Normal", value: 0 },
+    { label: "Abnormal", value: 1 }
+  ],
+  lung_function: [
+    { label: "Normal", value: 0 },
+    { label: "Abnormal", value: 1 }
+  ],
+  cancer: [
+    { label: "No", value: 0 },
+    { label: "Yes", value: 1 }
+  ],
+  diabetes: [
+    { label: "No", value: 0 },
+    { label: "Yes", value: 1 }
+  ],
+  hypertension: [
+    { label: "No", value: 0 },
+    { label: "Yes", value: 1 }
+  ]
 };
 
 const Classification = () => {
@@ -61,25 +86,11 @@ const Classification = () => {
     setResult(null);
     setError('');
 
-    const payload = {
-      age: parseFloat(formData.age),
-      gender: parseInt(formData.gender),
-      height: parseFloat(formData.height),
-      weight: parseFloat(formData.weight),
-      alcohol_consumption_per_day_in_liter: parseFloat(formData.alcohol_consumption_per_day_in_liter),
-      alcohol_duration: parseFloat(formData.alcohol_duration),
-      tobacco_chewing_per_day_in_gram: parseFloat(formData.tobacco_chewing_per_day_in_gram),
-      tobacco_duration: parseFloat(formData.tobacco_duration),
-      smoking_per_day: parseFloat(formData.smoking_per_day),
-      smoking_duration: parseFloat(formData.smoking_duration),
-      addiction_dependence: parseInt(formData.addiction_dependence),
-      liver_function: parseInt(formData.liver_function),
-      kidney_function: parseInt(formData.kidney_function),
-      lung_function: parseInt(formData.lung_function),
-      cancer: parseInt(formData.cancer),
-      diabetes: parseInt(formData.diabetes),
-      hypertension: parseInt(formData.hypertension)
-    };
+    const payload = {};
+    for (let key in formData) {
+      const val = formData[key];
+      payload[key] = isNaN(val) ? val : Number(val);
+    }
 
     try {
       const API_URL = import.meta.env.DEV
@@ -95,11 +106,30 @@ const Classification = () => {
     }
   };
 
+  const renderOptions = (key) => {
+    const values = selectOptions[key];
+    return typeof values[0] === 'object'
+      ? values.map(({ label, value }) => (
+          <option key={value} value={value}>{label}</option>
+        ))
+      : values.map(val => (
+          <option key={val} value={val}>{val}</option>
+        ));
+  };
+
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white shadow-md rounded-xl space-y-4">
+    <>
+      <div className='left-0 right-0 z-50 p-1 md:p-2 flex flex-row gap-4 sm:gap-0 w-full text-white bg-black bg-opacity-30 items-center justify-between'>
+        <h1 className='text-lg sm:text-xl text-center sm:text-left text-white hover:text-purple-500 transition-colors duration-300'>Risk Classification Model</h1>
+        <div className='flex flex-row gap-4 text-lg sm:text-xl text-center sm:text-left'>
+          <a className='text-white hover:text-purple-500 transition-colors duration-300'  href="">About</a>
+          <a className='text-white hover:text-purple-500 transition-colors duration-300' href="">Code</a>
+        </div>
+      </div>
+      <div className="max-w-2xl mx-auto p-6 bg-white shadow-md rounded-xl space-y-4">
       <h2 className="text-2xl font-semibold mb-4">Clinical Risk Prediction</h2>
       <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-        {Object.entries(selectOptions).map(([key, options]) => (
+        {Object.keys(initialForm).map((key) => (
           <div key={key} className="flex flex-col">
             <label className="capitalize text-sm font-medium text-gray-700">
               {key.replaceAll('_', ' ')}
@@ -112,9 +142,7 @@ const Classification = () => {
               className="border p-2 rounded"
             >
               <option value="" disabled>Select {key.replaceAll('_', ' ')}</option>
-              {options.map((val) => (
-                <option key={val} value={val}>{val}</option>
-              ))}
+              {renderOptions(key)}
             </select>
           </div>
         ))}
@@ -135,6 +163,8 @@ const Classification = () => {
         </div>
       )}
     </div>
+    </>
+    
   );
 };
 
