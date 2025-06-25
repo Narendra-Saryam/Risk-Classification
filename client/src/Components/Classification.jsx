@@ -118,20 +118,21 @@ const Classification = () => {
   };
 
   return (
-    <>
-      <div className='left-0 right-0 z-50 p-1 md:p-2 flex flex-row gap-4 sm:gap-0 w-full text-white bg-black bg-opacity-30 items-center justify-between'>
-        <h1 className='text-lg sm:text-xl text-center sm:text-left text-white hover:text-purple-500 transition-colors duration-300'>Risk Classification Model</h1>
+    <div className='max-h-screen min-h-screen flex flex-col jusbtify-between'>
+      <div className='left-0 right-0 z-50 p-1 md:p-2 flex flex-row gap-4 sm:gap-0 w-full border-b-[0.5px] border-purple-300 shadow-black text-white bg-black bg-opacity-30 items-center justify-between'>
+        <h1 className='text-lg sm:text-xl text-center sm:text-left text-white hover:text-purple-500 transition-colors duration-300 ml-1 md:pl-4'>Risk Classification Model</h1>
         <div className='flex flex-row gap-4 text-lg sm:text-xl text-center sm:text-left'>
-          <a className='text-white hover:text-purple-500 transition-colors duration-300'  href="">About</a>
-          <a className='text-white hover:text-purple-500 transition-colors duration-300' href="">Code</a>
+          <a className='text-white hover:text-purple-500 transition-colors duration-300 md:pr-3'  href="https://narendra-saryam.netlify.app/">About</a>
+          <a className='text-white hover:text-purple-500 transition-colors duration-300 md:pr-6' href="https://github.com/Narendra-Saryam/Risk-Classification">Github</a>
         </div>
       </div>
-      <div className="max-w-2xl mx-auto p-6 bg-white shadow-md rounded-xl space-y-4">
-      <h2 className="text-2xl font-semibold mb-4">Clinical Risk Prediction</h2>
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+
+      <div className="flex flex-col items-center justify-center  max-w-7xl mx-auto p-6 mt-8 bg-[#161c25] text-white shadow-md rounded-xl space-y-4 border-2 border-purple-500">
+      <h2 className="text-2xl font-semibold mb-4 bg-purple-500 p-1 px-4 rounded-lg text-black">Risk Prediction</h2>
+      <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {Object.keys(initialForm).map((key) => (
           <div key={key} className="flex flex-col">
-            <label className="capitalize text-sm font-medium text-gray-700">
+            <label className="capitalize text-sm font-medium text-white p-1">
               {key.replaceAll('_', ' ')}
             </label>
             <select
@@ -139,15 +140,15 @@ const Classification = () => {
               value={formData[key]}
               onChange={handleChange}
               required
-              className="border p-2 rounded"
+              className="border-b p-2 rounded bg-transparent text-purple-700 hover:bg-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="" disabled>Select {key.replaceAll('_', ' ')}</option>
               {renderOptions(key)}
             </select>
           </div>
         ))}
-        <div className="col-span-2 text-center">
-          <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+        <div className=" w-full text-center pt-7">
+          <button type="submit" className="w-full bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
             Predict Risk
           </button>
         </div>
@@ -162,8 +163,13 @@ const Classification = () => {
           {error}
         </div>
       )}
+      </div>
+
+      <div className='md:absolute bottom-0 mt-2 p-2 w-full text-center bg-purple-500 bg-opacity-50 text-white text-sm md:text-base'>
+      The Project is made by: <strong>Narendra Saryam</strong><br />
+      <span className="text-xs italic">(Note: Model may give wrong prediction)</span>
+      </div>
     </div>
-    </>
     
   );
 };
